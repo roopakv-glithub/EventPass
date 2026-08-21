@@ -663,7 +663,12 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
                   <span>{user?.email || ''}</span>
                   {user?.regno && <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Reg No: {user.regno}</div>}
                 </div>
-                <div className="qr-code" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'fit-content' }}>
+                <div 
+                  className="qr-code" 
+                  onClick={() => window.location.assign('/participant/my-qr')}
+                  title="Click to view full-size enlarged QR pass"
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'fit-content', cursor: 'pointer' }}
+                >
                   {reg?.id ? (
                     <RotatingQRCode 
                       registrationId={reg.id} 
@@ -682,6 +687,9 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
                       <small style={{ color: 'black', marginTop: '2px', fontWeight: 600, fontSize: '9px' }}>{regnoLabel}</small>
                     </div>
                   )}
+                  <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, marginTop: '6px', textDecoration: 'underline' }}>
+                    Click to enlarge
+                  </span>
                 </div>
               </div>
             </div>
