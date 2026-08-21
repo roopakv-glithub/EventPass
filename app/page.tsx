@@ -31,7 +31,14 @@ function AppShell({ role, setRole, dark, setDark, page, setPage, user, openLogin
   return <div className="app-frame">
     <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="brand" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-        <div className="brand-mark"><Zap size={17} /></div>
+        <div className="brand-mark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', padding: 0 }}>
+          <svg viewBox="0 0 23 23" width="18" height="18" style={{ display: 'block' }}>
+            <rect x="0" y="0" width="10" height="10" fill="#f25022" />
+            <rect x="13" y="0" width="10" height="10" fill="#7fba00" />
+            <rect x="0" y="13" width="10" height="10" fill="#00a4ef" />
+            <rect x="13" y="13" width="10" height="10" fill="#ffb900" />
+          </svg>
+        </div>
         <span>event<span className="brand-accent">pass</span></span>
         <button 
           className="mobile-close icon-button" 

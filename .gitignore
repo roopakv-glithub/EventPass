@@ -1,19 +1,40 @@
-# v0 sandbox internal files
+# Build outputs
+.next/
+node_modules/
+dist/
+out/
+
+# Environment variables (never commit secrets)
+.env
+.env.local
+.env*.local
+.env.production
+
+# OS & editor junk
+.DS_Store
+Thumbs.db
+*.pyc
+__pycache__/
+venv/
+.venv/
+.vercel/
+
+# Sandbox internal files
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
-.vercel/
 
-# Environment variables
-.env*.local
+# Unwanted backend & tooling folders (not needed for frontend deployment)
+flask-backend/
+qr-automation/
+scripts/
+docs/
 
-# Common ignores
-node_modules
-.next/
-.DS_Store
-venv/
-.venv/
-__pycache__/
-*.pyc
+# Individual migration files (combined into supabase/eventpass_schema.sql)
+supabase/migrations/
+
+# Unwanted MD files
+AGENTS.md
+CLAUDE.md
