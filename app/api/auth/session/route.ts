@@ -104,13 +104,50 @@ export async function POST(request: Request) {
         return NextResponse.json({ user: { id: existing.id, role: 'participant', full_name: body.full_name || existing.full_name, name: body.full_name || existing.full_name, email: existing.email, regno: existing.regno } })
       }
 
-      // New participant — create a profile row
-      const newId = crypto.randomUUID()
+      // 1. Create the user in Supabase Auth first to get a valid auth.users reference
+      let authUserId: string | null = null
       const regnoEmail = `${regno.toLowerCase().replace(/\s+/g, '')}@eventpass.local`
+
+      try {
+        const { data: adminUser, error: adminErr } = await supabase.auth.admin.createUser({
+          email: regnoEmail,
+          password: password,
+          email_confirm: true,
+          user_metadata: { full_name: body.full_name || regno, role: 'participant', regno }
+        })
+
+        if (adminErr) {
+          if (adminErr.message.includes('already') || adminErr.message.includes('exists')) {
+            // Attempt standard signUp fallback if auth user exists
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+              email: regnoEmail,
+              password: password,
+              options: { data: { full_name: body.full_name || regno, role: 'participant', regno } }
+            })
+            if (signUpData?.user) {
+              authUserId = signUpData.user.id
+            } else {
+              return NextResponse.json({ error: `Authentication setup error: ${signUpErr?.message || adminErr.message}` }, { status: 400 })
+            }
+          } else {
+            return NextResponse.json({ error: `Auth setup failed: ${adminErr.message}` }, { status: 400 })
+          }
+        } else if (adminUser?.user) {
+          authUserId = adminUser.user.id
+        }
+      } catch (err: any) {
+        return NextResponse.json({ error: `Auth setup error: ${err.message}` }, { status: 500 })
+      }
+
+      if (!authUserId) {
+        return NextResponse.json({ error: 'Failed to create auth credentials.' }, { status: 500 })
+      }
+
+      // 2. Insert the profile row with the valid authUserId
       const { error: insertErr } = await supabase
         .from('profiles')
         .insert({
-          id: newId,
+          id: authUserId,
           full_name: body.full_name || regno,
           email: regnoEmail,
           regno,
@@ -119,11 +156,11 @@ export async function POST(request: Request) {
         })
 
       if (insertErr) {
-        return NextResponse.json({ error: `Failed to create account: ${insertErr.message}` }, { status: 500 })
+        return NextResponse.json({ error: `Failed to create profile: ${insertErr.message}` }, { status: 500 })
       }
 
       const sessionPayload = {
-        id: newId, role: 'participant', regno,
+        id: authUserId, role: 'participant', regno,
         full_name: body.full_name || regno, email: regnoEmail,
         iat: Date.now(), exp: Date.now() + SESSION_MAX_AGE * 1000,
       }
@@ -132,7 +169,7 @@ export async function POST(request: Request) {
         httpOnly: true, secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/',
       })
-      return NextResponse.json({ user: { id: newId, role: 'participant', full_name: body.full_name || regno, name: body.full_name || regno, email: regnoEmail, regno } })
+      return NextResponse.json({ user: { id: authUserId, role: 'participant', full_name: body.full_name || regno, name: body.full_name || regno, email: regnoEmail, regno } })
     }
 
     // ── Participant Login ────────────────────────────────────
