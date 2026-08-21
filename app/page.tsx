@@ -10,6 +10,7 @@ import {
 import { AnalyticsDashboard } from '@/components/analytics-dashboard'
 import { QRCodeSVG } from 'qrcode.react'
 import { OrganizerScanner } from '@/components/organizer-scanner'
+import { RotatingQRCode } from '@/components/rotating-qr'
 
 function Status({ children }: { children: string }) {
   return <span className={`status ${children === 'Checked in' ? 'success' : children === 'Invalid' ? 'danger' : 'neutral'}`}><span className="status-dot" />{children}</span>
@@ -37,7 +38,7 @@ function AppShell({ role, setRole, dark, setDark, page, setPage, user, openLogin
           onClick={() => setSidebarOpen(false)} 
           style={{ marginLeft: 'auto', display: 'none', fontSize: '20px', border: 'none', background: 'none' }}
         >
-          ×
+          Organizer
         </button>
       </div>
       <div className="role-switch">
@@ -133,25 +134,41 @@ function EventCard({ event, onRegister, onUnregister, onDelete, registered, isOr
   </div> 
 }
 
-function LoginModal({ close, defaultTab, onLoginSuccess }: { close: () => void; defaultTab: 'organizer' | 'participant'; onLoginSuccess: (user: any) => void }) {
+function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { close: () => void; defaultTab: 'organizer' | 'participant'; onLoginSuccess: (user: any) => void; isForced?: boolean }) {
   const [tab, setTab] = useState<'organizer' | 'participant'>(defaultTab)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [orgId, setOrgId] = useState('')
+  const [orgPassword, setOrgPassword] = useState('')
+  const [regno, setRegno] = useState('')
+  const [participantPassword, setParticipantPassword] = useState('')
+
+  // Autofill last used organizer ID from localStorage
+  function autofillOrganizer() {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('eventpass-last-organizer-id') : null
+    if (saved) {
+      setOrgId(saved)
+    } else {
+      setOrgId('OrganizerAcess')
+    }
+    setOrgPassword('Organizer123')
+  }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const formData = new FormData(e.currentTarget)
-    const values = Object.fromEntries(formData)
-
     try {
-      const payload = tab === 'organizer' 
-        ? { action: 'organizer_login', email: values.email, password: values.password }
-        : { action: 'participant_login', regno: values.regno, name: values.name, email: values.email }
+      let payload: any
+      if (tab === 'organizer') {
+        payload = { action: 'organizer_login', organizer_id: orgId, password: orgPassword }
+      } else {
+        payload = { action: 'participant_login', regno: regno.trim(), password: participantPassword }
+      }
 
-      const res = await fetch('/api/participants', {
+      const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -159,19 +176,17 @@ function LoginModal({ close, defaultTab, onLoginSuccess }: { close: () => void; 
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Login failed')
+        setError(data.error || 'Authentication failed')
         setLoading(false)
         return
       }
 
-      const userData = data.user || {
-        role: tab,
-        name: tab === 'organizer' ? String(values.email).split('@')[0] : values.name,
-        email: values.email,
-        regno: tab === 'participant' ? values.regno : undefined,
+      // Save last organizer ID for autofill
+      if (tab === 'organizer' && typeof window !== 'undefined') {
+        localStorage.setItem('eventpass-last-organizer-id', orgId)
       }
 
-      onLoginSuccess(userData)
+      onLoginSuccess(data.user)
       close()
     } catch (err: any) {
       setError(err.message || 'An error occurred during sign in')
@@ -179,69 +194,168 @@ function LoginModal({ close, defaultTab, onLoginSuccess }: { close: () => void; 
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    padding: '10px 14px', borderRadius: '8px',
+    border: '1px solid var(--border)', background: 'var(--card)',
+    color: 'var(--foreground)', fontSize: '14px', width: '100%', boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = {
+    display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600,
+  }
+
   return <div className="modal-backdrop" role="dialog" aria-modal="true">
-    <div className="auth-card modal-form" style={{ width: 'min(100%, 460px)', margin: 'auto' }}>
+    <div className="auth-card modal-form" style={{ width: 'min(100%, 480px)', margin: 'auto' }}>
       <div className="panel-heading" style={{ marginBottom: '16px' }}>
         <div>
           <p className="eyebrow">EVENTPASS AUTHENTICATION</p>
           <h2>Sign in to Continue</h2>
         </div>
-        <button type="button" className="icon-button" aria-label="Close" onClick={close}>×</button>
+        {!isForced && <button type="button" className="icon-button" aria-label="Close" onClick={close}>×</button>}
       </div>
 
-      <div className="auth-role-switch" style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-        <button 
-          className={tab === 'organizer' ? 'active button button-dark' : 'button button-outline'} 
-          style={{ flex: 1 }} 
-          type="button" 
+      {/* Role tabs */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', background: 'var(--card)', borderRadius: '10px', padding: '4px', border: '1px solid var(--border)' }}>
+        <button
+          style={{
+            flex: 1, padding: '9px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+            fontWeight: 700, fontSize: '13px', transition: 'all 0.2s',
+            background: tab === 'organizer' ? 'var(--foreground)' : 'transparent',
+            color: tab === 'organizer' ? 'var(--background)' : 'var(--muted-foreground)',
+          }}
+          type="button"
           onClick={() => { setTab('organizer'); setError('') }}
         >
-          Organizer Login
+          Participant
         </button>
-        <button 
-          className={tab === 'participant' ? 'active button button-dark' : 'button button-outline'} 
-          style={{ flex: 1 }} 
-          type="button" 
+        <button
+          style={{
+            flex: 1, padding: '9px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+            fontWeight: 700, fontSize: '13px', transition: 'all 0.2s',
+            background: tab === 'participant' ? 'var(--foreground)' : 'transparent',
+            color: tab === 'participant' ? 'var(--background)' : 'var(--muted-foreground)',
+          }}
+          type="button"
           onClick={() => { setTab('participant'); setError('') }}
         >
-          Participant Login
+          Participant
         </button>
       </div>
 
-      <form onSubmit={submit} className="auth-form" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <form onSubmit={submit} className="auth-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {tab === 'organizer' ? (
           <>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
-              User ID / Email *
-              <input name="email" type="email" placeholder="organizer@eventpass.com" required style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+            {/* Secure autofill banner */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', borderRadius: '8px',
+              background: 'rgba(78, 166, 188, 0.1)', border: '1px solid rgba(78, 166, 188, 0.3)',
+              fontSize: '12px', color: 'var(--muted-foreground)',
+            }}>
+              <span>Secure Organizer Login</span>
+              <button
+                type="button"
+                onClick={autofillOrganizer}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '5px',
+                  border: '1px solid rgba(78,166,188,0.5)', background: 'transparent',
+                  color: '#4ea6bc', cursor: 'pointer',
+                }}
+              >
+                Autofill
+              </button>
+            </div>
+            <label style={labelStyle}>
+              Organizer ID *
+              <input
+                type="text"
+                placeholder="OrganizerAcess"
+                value={orgId}
+                onChange={(e) => setOrgId(e.target.value)}
+                required
+                autoComplete="username"
+                style={inputStyle}
+              />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
+            <label style={labelStyle}>
               Password *
-              <input name="password" type="password" placeholder="••••••••" required style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password"
+                  value={orgPassword}
+                  onChange={(e) => setOrgPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  style={{ ...inputStyle, paddingRight: '56px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px',
+                    color: 'var(--muted-foreground)', fontWeight: 600, padding: 0
+                  }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </label>
           </>
         ) : (
           <>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
-              Registration Number (Reg No) *
-              <input name="regno" placeholder="e.g. 2026-REG-104" required style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+            <div style={{
+              padding: '10px 14px', borderRadius: '8px',
+              background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.2)',
+              fontSize: '12px', color: 'var(--muted-foreground)',
+            }}>
+              Enter your Registration Number and password to access your events. First-time logins will automatically register the password.
+            </div>
+            <label style={labelStyle}>
+              Register Number *
+              <input
+                type="text"
+                placeholder="e.g. 2026-REG-104"
+                value={regno}
+                onChange={(e) => setRegno(e.target.value)}
+                required
+                autoComplete="username"
+                style={inputStyle}
+              />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
-              Participant Name *
-              <input name="name" placeholder="e.g. Alex Morgan" required style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
-              Participant Email *
-              <input name="email" type="email" placeholder="alex@email.com" required style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+            <label style={labelStyle}>
+              Password *
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={participantPassword}
+                  onChange={(e) => setParticipantPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  style={{ ...inputStyle, paddingRight: '56px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px',
+                    color: 'var(--muted-foreground)', fontWeight: 600, padding: 0
+                  }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </label>
           </>
         )}
 
-        {error && <p className="form-error" style={{ color: '#ef4444', fontSize: '13px', margin: 0 }}>{error}</p>}
+        {error && <p className="form-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', margin: 0, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-          <button type="button" className="button button-outline" onClick={close}>Cancel</button>
-          <button className="button button-dark" disabled={loading}>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+          {!isForced && <button type="button" className="button button-outline" onClick={close}>Cancel</button>}
+          <button className="button button-dark" disabled={loading} id="login-submit-btn">
             {loading ? 'Authenticating...' : tab === 'organizer' ? 'Sign in as Organizer' : 'Sign in as Participant'}
           </button>
         </div>
@@ -549,14 +663,25 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
                   <span>{user?.email || ''}</span>
                   {user?.regno && <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Reg No: {user.regno}</div>}
                 </div>
-                <div className="qr-code" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'white', padding: '6px', borderRadius: '6px', width: 'fit-content' }}>
-                  <QRCodeSVG 
-                    id={svgId}
-                    value={qrVal} 
-                    size={100} 
-                    includeMargin 
-                  />
-                  <small style={{ color: 'black', marginTop: '2px', fontWeight: 600, fontSize: '9px' }}>{regnoLabel}</small>
+                <div className="qr-code" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'fit-content' }}>
+                  {reg?.id ? (
+                    <RotatingQRCode 
+                      registrationId={reg.id} 
+                      eventId={event.id} 
+                      regnoLabel={regnoLabel} 
+                      size={180} 
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'white', padding: '6px', borderRadius: '6px' }}>
+                      <QRCodeSVG 
+                        id={svgId}
+                        value={qrVal} 
+                        size={180} 
+                        includeMargin 
+                      />
+                      <small style={{ color: 'black', marginTop: '2px', fontWeight: 600, fontSize: '9px' }}>{regnoLabel}</small>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -565,13 +690,6 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
               <h3>Good to go.</h3>
               <p>Your ticket is saved in Supabase. Show this QR code at the door to check in.</p>
               <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                <button 
-                  className="button button-dark" 
-                  onClick={() => downloadTicketQR(svgId, `event-pass-${event.id}`, regnoLabel)}
-                  style={{ flex: 1 }}
-                >
-                  Download <Download size={14} />
-                </button>
                 <button className="button button-outline" onClick={() => onUnregister(event)} style={{ borderColor: '#ef4444', color: '#ef4444', flex: 1 }}>Unregister</button>
               </div>
             </div>
@@ -796,16 +914,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
         </select>
       </div>
     </section>
-    <div className="scanner-layout">
-      <OrganizerScanner eventId={selectedEventId} />
-      <div className="panel scan-stats">
-        <h2>Today&apos;s check-in</h2>
-        <div className="big-stat">{checked}<span> / {filteredPeople.length}</span></div>
-        <div className="progress"><i style={{width: `${filteredPeople.length ? Math.max(12, (checked / filteredPeople.length) * 100) : 0}%`}} /></div>
-        <p>{checked} checked in · {Math.max(filteredPeople.length - checked, 0)} remaining</p>
-        <div className="offline"><span className="status-dot" />Offline queue empty <span>Sync ready</span></div>
-      </div>
-    </div>
+    <OrganizerScanner eventId={selectedEventId} />
   </>
 
   return <div className="page-content">
@@ -837,6 +946,7 @@ export default function Page() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalTab, setLoginModalTab] = useState<'organizer' | 'participant'>('participant');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [pendingEvent, setPendingEvent] = useState<any>(null);
 
   const fetchSupabaseEvents = async () => {
@@ -895,8 +1005,13 @@ export default function Page() {
           setPeople(dbPeople)
 
           // Auto-mark registered events if logged in user is in registrations
-          if (currentUser?.email) {
-            const userRegs = dbPeople.filter((p: any) => p.email.toLowerCase() === currentUser.email.toLowerCase())
+          if (currentUser?.email || currentUser?.regno) {
+            const userRegs = dbPeople.filter((p: any) => {
+              if (currentUser.email && p.email && p.email.toLowerCase() === currentUser.email.toLowerCase()) return true
+              if (currentUser.regno && p.regno && p.regno.toLowerCase() === currentUser.regno.toLowerCase()) return true
+              if (currentUser.id && p.participant_id && p.participant_id === currentUser.id) return true
+              return false
+            })
             const regMap: Record<string, boolean> = {}
             userRegs.forEach((r: any) => {
               if (r.event_id) regMap[r.event_id] = true
@@ -916,16 +1031,46 @@ export default function Page() {
     fetchSupabaseEvents()
     fetchParticipants()
 
-    const savedUser = localStorage.getItem('eventpass-user')
-    if (savedUser) {
-      try {
-        const u = JSON.parse(savedUser)
-        setCurrentUser(u)
-        const restoredRole = u.role || 'organizer'
-        setRole(restoredRole)
-        setPage(restoredRole === 'organizer' ? 'overview' : 'home')
-      } catch (e) {}
-    }
+    // Check server-side session first (JWT cookie)
+    fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setCurrentUser(data.user)
+          const restoredRole = data.user.role || 'organizer'
+          setRole(restoredRole)
+          setPage(restoredRole === 'organizer' ? 'overview' : 'home')
+          localStorage.setItem('eventpass-user', JSON.stringify(data.user))
+        } else {
+          // Fallback: check localStorage
+          const savedUser = localStorage.getItem('eventpass-user')
+          if (savedUser) {
+            try {
+              const u = JSON.parse(savedUser)
+              setCurrentUser(u)
+              const restoredRole = u.role || 'organizer'
+              setRole(restoredRole)
+              setPage(restoredRole === 'organizer' ? 'overview' : 'home')
+            } catch (e) {}
+          }
+        }
+      })
+      .catch(() => {
+        // Server session unavailable — use localStorage
+        const savedUser = localStorage.getItem('eventpass-user')
+        if (savedUser) {
+          try {
+            const u = JSON.parse(savedUser)
+            setCurrentUser(u)
+            const restoredRole = u.role || 'organizer'
+            setRole(restoredRole)
+            setPage(restoredRole === 'organizer' ? 'overview' : 'home')
+          } catch (e) {}
+        }
+      })
+      .finally(() => {
+        setAuthLoading(false)
+      })
 
     const savedDemo = localStorage.getItem('eventpass-demo'); 
     if (savedDemo) { 
@@ -942,19 +1087,51 @@ export default function Page() {
     document.documentElement.classList.toggle('dark', dark) 
   }, [dark]); 
 
+  // Auto-sync registered events for logged in user (by regno, email, or profile id)
+  useEffect(() => {
+    if (currentUser && people.length > 0) {
+      const userRegs = people.filter((p: any) => {
+        if (currentUser.email && p.email && p.email.toLowerCase() === currentUser.email.toLowerCase()) return true
+        if (currentUser.regno && p.regno && p.regno.toLowerCase() === currentUser.regno.toLowerCase()) return true
+        if (currentUser.id && p.participant_id && p.participant_id === currentUser.id) return true
+        return false
+      })
+      const regMap: Record<string, boolean> = {}
+      userRegs.forEach((r: any) => {
+        if (r.event_id) regMap[r.event_id] = true
+      })
+      if (Object.keys(regMap).length > 0) {
+        setRegisteredEvents(prev => ({ ...prev, ...regMap }))
+      }
+    }
+  }, [currentUser, people])
+
   const performRegistration = async (eventObj: any, userObj: any) => {
     try {
-      await fetch('/api/participants', {
+      const res = await fetch('/api/participants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'register_event',
-          regno: userObj.regno,
-          name: userObj.name,
+          regno: userObj.regno || userObj.user_metadata?.regno,
+          name: userObj.name || userObj.full_name || userObj.email,
           email: userObj.email,
           event_id: eventObj.id,
         }),
       })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 409 || data.error?.includes('EVENT_FULL') || data.error?.includes('full')) {
+          alert('Seat not available. This event has reached maximum capacity set in Supabase.')
+        } else if (data.error?.includes('ALREADY_REGISTERED')) {
+          alert('You are already registered for this event.')
+        } else {
+          alert(`Registration failed: ${data.error || 'Unknown error'}`)
+        }
+        return
+      }
 
       // Mark event as registered in state and local storage
       setRegisteredEvents(prev => {
@@ -972,6 +1149,7 @@ export default function Page() {
       setPage('my-events')
     } catch (e) {
       console.error('Failed to register for event', e)
+      alert('Network error while registering for event.')
     }
   }
 
@@ -1046,7 +1224,9 @@ export default function Page() {
 
   const handleLoginSuccess = async (userData: any) => {
     setCurrentUser(userData)
-    setRole(userData.role || 'participant')
+    const resolvedRole = userData.role || 'participant'
+    setRole(resolvedRole)
+    setPage(resolvedRole === 'organizer' ? 'overview' : 'home')
     localStorage.setItem('eventpass-user', JSON.stringify(userData))
     await fetchParticipants()
 
@@ -1058,16 +1238,44 @@ export default function Page() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear server-side session cookie
+    await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout' }),
+    }).catch(() => {})
     setCurrentUser(null)
     localStorage.removeItem('eventpass-user')
     setRegisteredEvents({})
+    setPage('overview')
   }
 
   const switchRole = (r: any) => { 
     setRole(r); 
     setPage(r === 'organizer' ? 'overview' : 'home') 
   }; 
+
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--card)' }}>
+        <p style={{ fontWeight: 600, color: 'var(--muted-foreground)' }}>Verifying session...</p>
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="auth-page" style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--card)' }}>
+        <LoginModal 
+          close={() => {}} 
+          defaultTab={loginModalTab} 
+          onLoginSuccess={handleLoginSuccess}
+          isForced={true}
+        />
+      </main>
+    )
+  }
 
   return <>
     <AppShell 

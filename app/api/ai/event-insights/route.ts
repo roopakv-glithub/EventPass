@@ -1,47 +1,118 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
-type Stats = { registered: number; checked_in: number; no_shows: number; capacity: number; peak_check_in_time: string | null }
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  return createClient(url, key)
+}
 
-function fallback(question: string, stats: Stats) {
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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'
+const NVIDIA_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b'
+
+type Stats = {
+  registered: number
+  checked_in: number
+  no_shows: number
+  capacity: number
+  peak_check_in_time: string | null
+}
+
+function fallback(question: string, stats: Stats, eventName: string) {
   const remaining = Math.max(stats.capacity - stats.registered, 0)
   const rate = stats.registered ? Math.round((stats.no_shows / stats.registered) * 100) : 0
-  if (/checked in/i.test(question)) return `${stats.checked_in} participants have checked in so far.`
-  if (/no.?show/i.test(question)) return `${rate}% of registered attendees are no-shows (${stats.no_shows} people).`
-  if (/peak|busiest/i.test(question)) return stats.peak_check_in_time ? `Check-ins peaked around ${new Date(stats.peak_check_in_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : 'There is not enough check-in activity to identify a peak yet.'
-  if (/spot|capacity|left/i.test(question)) return `${remaining} spots are left.`
-  return `There are ${stats.registered} registered, ${stats.checked_in} checked in, and ${stats.no_shows} no-shows.`
+  const checkInRate = stats.registered ? Math.round((stats.checked_in / stats.registered) * 100) : 0
+
+  if (/checked in/i.test(question)) return `${stats.checked_in} out of ${stats.registered} registered participants have checked in so far (${checkInRate}% check-in rate).`
+  if (/no.?show/i.test(question)) return `${rate}% of registered attendees are no-shows (${stats.no_shows} people out of ${stats.registered} registered).`
+  if (/peak|busiest/i.test(question)) return stats.peak_check_in_time ? `Check-ins for ${eventName} peaked around ${new Date(stats.peak_check_in_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : `There is not enough check-in activity for ${eventName} to identify a peak time yet.`
+  if (/spot|capacity|left/i.test(question)) return `There are ${remaining} spots left out of total capacity ${stats.capacity}.`
+  return `${eventName} Summary: ${stats.registered} registered, ${stats.checked_in} checked in (${checkInRate}%), ${stats.no_shows} no-shows, and ${remaining} remaining capacity.`
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  const body = await request.json().catch(() => null)
-  if (!body?.event_id || !body?.question) return NextResponse.json({ error: 'event_id and question are required' }, { status: 400 })
+  try {
+    const supabase = getAdminClient()
+    const body = await request.json().catch(() => null)
+    if (!body?.event_id || !body?.question) {
+      return NextResponse.json({ error: 'event_id and question are required' }, { status: 400 })
+    }
 
-  const { data: event } = await supabase.from('events').select('id,name,organizer_id').eq('id', body.event_id).single()
-  if (!event || event.organizer_id !== user.id) return NextResponse.json({ error: 'Organizer access required' }, { status: 403 })
-  const { data: stats, error } = await supabase.rpc('event_stats', { target_event_id: body.event_id })
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    // 1. Fetch live event info
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, name, capacity')
+      .eq('id', body.event_id)
+      .maybeSingle()
 
-  const answer = fallback(body.question, stats as Stats)
-  const apiKey = process.env.GITHUB_TOKEN
-  if (!apiKey) return NextResponse.json({ answer, source: 'database-fallback', stats })
+    const eventName = event?.name ?? 'Event'
+    const capacity = event?.capacity ?? 100
 
-  const aiResponse = await fetch(process.env.GITHUB_MODELS_API_URL ?? 'https://models.github.ai/inference/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      temperature: 0,
-      messages: [
-        { role: 'system', content: 'Answer only from the supplied JSON. If the answer is not present, say that the data is unavailable. Never invent statistics.' },
-        { role: 'user', content: JSON.stringify({ event: event.name, stats, question: body.question }) },
-      ],
-    }),
-  }).catch(() => null)
-  if (!aiResponse?.ok) return NextResponse.json({ answer, source: 'database-fallback', stats })
-  const payload = await aiResponse.json()
-  return NextResponse.json({ answer: payload.choices?.[0]?.message?.content ?? answer, source: 'ai', stats })
+    // 2. Fetch live counts from Supabase
+    const [{ count: regCount }, { count: checkInCount }] = await Promise.all([
+      supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('event_id', body.event_id).eq('status', 'registered'),
+      supabase.from('check_ins').select('*', { count: 'exact', head: true }).eq('event_id', body.event_id),
+    ])
+
+    const registered = regCount ?? 0
+    const checked_in = checkInCount ?? 0
+    const no_shows = Math.max(registered - checked_in, 0)
+    const stats: Stats = {
+      registered,
+      checked_in,
+      no_shows,
+      capacity,
+      peak_check_in_time: null,
+    }
+
+    // 3. Query NVIDIA Nemotron AI Model
+    try {
+      const aiResponse = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: NVIDIA_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an AI Analytics Assistant for EventPass. Answer the user question accurately based on the supplied event JSON statistics. Do not hallucinate or invent numbers not present in the data. Keep responses professional, clear, and concise.'
+            },
+            {
+              role: 'user',
+              content: `Live Supabase Event Data:\n${JSON.stringify({
+                event_name: eventName,
+                capacity,
+                registered_attendees: registered,
+                checked_in_attendees: checked_in,
+                no_shows,
+                check_in_percentage: registered ? `${Math.round((checked_in / registered) * 100)}%` : '0%',
+                available_capacity: Math.max(capacity - registered, 0)
+              }, null, 2)}\n\nQuestion: ${body.question}`
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+      })
+
+      if (aiResponse.ok) {
+        const payload = await aiResponse.json()
+        const aiAnswer = payload.choices?.[0]?.message?.content
+        if (aiAnswer) {
+          return NextResponse.json({ answer: aiAnswer, source: 'nvidia-nemotron-3.5', stats })
+        }
+      }
+    } catch (aiErr) {
+      console.error('NVIDIA AI API Error:', aiErr)
+    }
+
+    // 4. Database fallback answer if AI service unreachable
+    const answer = fallback(body.question, stats, eventName)
+    return NextResponse.json({ answer, source: 'database-fallback', stats })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message ?? 'Server error' }, { status: 500 })
+  }
 }

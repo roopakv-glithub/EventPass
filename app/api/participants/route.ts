@@ -150,22 +150,25 @@ export async function POST(request: Request) {
         role: 'participant',
       }
 
-      // If action is register_event, create registration entry in Supabase
+      // If action is register_event, use the race-condition-safe RPC
       if (action === 'register_event' && event_id) {
         if (profileId) {
-          const { data: existingReg } = await supabase
-            .from('registrations')
-            .select('id')
-            .eq('event_id', event_id)
-            .eq('participant_id', profileId)
-            .maybeSingle()
+          const { data: rpcResult, error: rpcError } = await supabase.rpc('register_for_event_v2', {
+            p_event_id: event_id,
+            p_participant_id: profileId,
+            p_email: email || null,
+            p_full_name: name || null,
+            p_regno: regno || null,
+          })
 
-          if (!existingReg) {
-            await supabase.from('registrations').insert({
-              participant_id: profileId,
-              event_id: event_id,
-              status: 'registered',
-            })
+          if (rpcError) {
+            return NextResponse.json({ error: rpcError.message }, { status: 400 })
+          }
+
+          // RPC returns a JSONB object with success/error
+          if (rpcResult && typeof rpcResult === 'object' && !rpcResult.success) {
+            const statusCode = rpcResult.error === 'EVENT_FULL' ? 409 : rpcResult.error === 'ALREADY_REGISTERED' ? 409 : 400
+            return NextResponse.json({ error: rpcResult.message || rpcResult.error }, { status: statusCode })
           }
         }
       }

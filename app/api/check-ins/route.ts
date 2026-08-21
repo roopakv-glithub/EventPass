@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { validateRustToken } from '@/lib/rust-qr'
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -15,6 +16,70 @@ export async function POST(request: Request) {
   if (!body?.token || !body?.event_id) return NextResponse.json({ error: 'token and event_id are required' }, { status: 400 })
 
   const tokenString = String(body.token).trim()
+
+  // Try parsing token as JSON payload for rotating token validation
+  let jsonPayload: any = null
+  try { jsonPayload = JSON.parse(tokenString) } catch (e) {}
+
+  if (jsonPayload && jsonPayload.reg_id && jsonPayload.token && jsonPayload.event_id) {
+    const valRes = await validateRustToken(jsonPayload.token, jsonPayload.reg_id, jsonPayload.event_id)
+    if (!valRes.valid) {
+      return NextResponse.json({ status: 'expired', error: 'This QR code has expired.' }, { status: 422 })
+    }
+
+    // Check if registration exists
+    const { data: reg, error: regErr } = await supabase
+      .from('registrations')
+      .select('id, status, participant_id, event_id, profiles(full_name, email), events(name)')
+      .eq('id', jsonPayload.reg_id)
+      .maybeSingle()
+
+    if (regErr || !reg) {
+      return NextResponse.json({ status: 'invalid_qr', error: 'No matching registration found.' }, { status: 422 })
+    }
+
+    if (reg.event_id !== body.event_id && body.event_id !== 'all') {
+      return NextResponse.json({ status: 'wrong_event', error: 'This QR belongs to another event.' }, { status: 422 })
+    }
+
+    // Check if already checked in
+    const { data: existingCheckin } = await supabase
+      .from('check_ins')
+      .select('id, checked_in_at')
+      .eq('registration_id', reg.id)
+      .maybeSingle()
+
+    if (existingCheckin) {
+      return NextResponse.json({
+        status: 'already_checked_in',
+        participant: (reg.profiles as any)?.full_name || 'Participant',
+        event: (reg.events as any)?.name || 'Event',
+        checked_in_at: existingCheckin.checked_in_at
+      }, { status: 409 })
+    }
+
+    // Perform check-in
+    const { error: insertError } = await supabase
+      .from('check_ins')
+      .insert({
+        registration_id: reg.id,
+        event_id: reg.event_id,
+        checked_in_by: reg.participant_id
+      })
+
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 400 })
+    }
+
+    await supabase.from('registrations').update({ qr_status: 'used' }).eq('id', reg.id)
+
+    return NextResponse.json({
+      status: 'success',
+      participant: (reg.profiles as any)?.full_name || 'Participant',
+      event: (reg.events as any)?.name || 'Event'
+    })
+  }
+
   const rawToken = tokenString.split('/').filter(Boolean).pop() ?? ''
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
 
