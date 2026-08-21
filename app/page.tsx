@@ -91,7 +91,7 @@ function AppShell({ role, setRole, dark, setDark, page, setPage, user, openLogin
   </div>
 }
 
-function StatCard({ label, value, change, icon: Icon }: any) { return <div className="stat-card"><div className="stat-top"><span>{label}</span><div className="stat-icon"><Icon size={17} /></div></div><strong className="stat-value">{value}</strong><div className="stat-change"><span className="up">↗ {change}</span> <span>vs last month</span></div></div> }
+function StatCard({ label, value, change, icon: Icon }: any) { return <div className="stat-card"><div className="stat-top"><span>{label}</span><div className="stat-icon"><Icon size={17} /></div></div><strong className="stat-value">{value}</strong>{change && <div className="stat-change"><span className="up">{change}</span></div>}</div> }
 
 function EventCard({ event, onRegister, onUnregister, onDelete, registered, isOrganizer }: any) { 
   return <div className="event-card">
@@ -990,18 +990,22 @@ export default function Page() {
       if (res.ok) {
         const data = await res.json()
         if (data.registrations && Array.isArray(data.registrations)) {
-          const dbPeople = data.registrations.map((r: any) => ({
-            id: r.id,
-            regno: r.profiles?.regno || 'REG-' + r.id.slice(0, 4).toUpperCase(),
-            name: r.profiles?.full_name || 'Participant',
-            email: r.profiles?.email || '',
-            event: r.events?.name || 'Event',
-            event_id: r.event_id,
-            registered: r.registered_at ? new Date(r.registered_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Today',
-            status: r.status === 'registered' ? 'Registered' : r.status || 'Registered',
-            qr_payload: r.qr_payload,
-            qr_status: r.qr_status,
-          }))
+          const dbPeople = data.registrations.map((r: any) => {
+            const isCheckedIn = (r.check_ins && Array.isArray(r.check_ins) && r.check_ins.length > 0) || r.status === 'Checked in' || r.status === 'checked_in'
+            return {
+              id: r.id,
+              participant_id: r.participant_id,
+              regno: r.profiles?.regno || 'REG-' + r.id.slice(0, 4).toUpperCase(),
+              name: r.profiles?.full_name || 'Participant',
+              email: r.profiles?.email || '',
+              event: r.events?.name || 'Event',
+              event_id: r.event_id,
+              registered: r.registered_at ? new Date(r.registered_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Today',
+              status: isCheckedIn ? 'Checked in' : 'Registered',
+              qr_payload: r.qr_payload,
+              qr_status: r.qr_status,
+            }
+          })
           setPeople(dbPeople)
 
           // Auto-mark registered events if logged in user is in registrations

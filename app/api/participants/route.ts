@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('registrations')
-      .select('id, status, registered_at, event_id, participant_id, qr_payload, qr_status, qr_token_hash, profiles(id, full_name, email, regno), events(id, name)')
+      .select('id, status, registered_at, event_id, participant_id, qr_payload, qr_status, qr_token_hash, profiles(id, full_name, email, regno), events(id, name), check_ins(id, checked_in_at)')
       .order('registered_at', { ascending: false })
 
     if (eventId && eventId !== 'all') {
