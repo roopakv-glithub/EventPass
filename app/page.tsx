@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import {
-  ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3,
+  ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, Clock3,
   Download, ExternalLink, Filter, LayoutDashboard, LogIn, LogOut, Menu, Moon, MoreHorizontal,
   Plus, QrCode, ScanLine, Search, Settings2, ShieldCheck, Sun, Ticket, User, Users,
   X, Zap,
@@ -20,7 +20,7 @@ function ThemeToggle({ dark, setDark }: { dark: boolean; setDark: (v: boolean) =
   return <button aria-label="Toggle theme" className="icon-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button>
 }
 
-function AppShell({ role, setRole, dark, setDark, page, setPage, user, openLoginModal, logout, sidebarOpen, setSidebarOpen, children }: any) {
+function AppShell({ role, dark, setDark, page, setPage, user, openLoginModal, logout, sidebarOpen, setSidebarOpen, children }: any) {
   const nav = role === 'organizer' ? [
     ['Overview', 'overview', LayoutDashboard], ['Events', 'events', CalendarDays], ['Participants', 'participants', Users], ['Scanner', 'scanner', ScanLine], ['Analytics', 'analytics', BarChart3],
   ] : [['Overview', 'home', LayoutDashboard], ['My events', 'my-events', Ticket], ['Explore events', 'explore', CalendarDays]]
@@ -45,13 +45,7 @@ function AppShell({ role, setRole, dark, setDark, page, setPage, user, openLogin
           onClick={() => setSidebarOpen(false)} 
           style={{ marginLeft: 'auto', display: 'none', fontSize: '20px', border: 'none', background: 'none' }}
         >
-          Organizer
-        </button>
-      </div>
-      <div className="role-switch">
-        <span>Workspace Mode</span>
-        <button onClick={() => { setRole(role === 'organizer' ? 'participant' : 'organizer'); setSidebarOpen(false); }}>
-          {role === 'organizer' ? 'Organizer' : 'Participant'}<ChevronDown size={14} />
+          ×
         </button>
       </div>
       <nav className="nav-list">{nav.map(([label, key, Icon]: any) => <button key={key} className={page === key ? 'nav-item active' : 'nav-item'} onClick={() => { setPage(key); setSidebarOpen(false); }}><Icon size={18} />{label}</button>)}</nav>
@@ -1334,11 +1328,6 @@ export default function Page() {
     setPage('overview')
   }
 
-  const switchRole = (r: any) => { 
-    setRole(r); 
-    setPage(r === 'organizer' ? 'overview' : 'home') 
-  }; 
-
   if (authLoading) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--card)' }}>
@@ -1363,7 +1352,6 @@ export default function Page() {
   return <>
     <AppShell 
       role={role} 
-      setRole={switchRole} 
       dark={dark} 
       setDark={setDark} 
       page={page} 
