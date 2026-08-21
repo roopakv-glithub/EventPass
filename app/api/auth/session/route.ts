@@ -61,6 +61,80 @@ export async function POST(request: Request) {
       })
     }
 
+    // ── Participant Signup ───────────────────────────────────
+    if (action === 'participant_signup') {
+      if (!regno || !password) {
+        return NextResponse.json({ error: 'Register Number and password required' }, { status: 400 })
+      }
+      if (password.length < 6) {
+        return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+      }
+
+      const supabase = getAdminClient()
+
+      // Check if regno already registered
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, regno, role, password_hash')
+        .eq('regno', regno)
+        .maybeSingle()
+
+      if (existing) {
+        if (existing.password_hash) {
+          return NextResponse.json({ error: 'This Register Number already has an account. Please sign in instead.' }, { status: 409 })
+        }
+        // Account exists but no password — set it now
+        const { error: updateErr } = await supabase
+          .from('profiles')
+          .update({ password_hash: password, full_name: body.full_name || existing.full_name })
+          .eq('id', existing.id)
+        if (updateErr) {
+          return NextResponse.json({ error: 'Failed to set password' }, { status: 500 })
+        }
+        const sessionPayload = {
+          id: existing.id, role: 'participant', regno: existing.regno,
+          full_name: body.full_name || existing.full_name, email: existing.email,
+          iat: Date.now(), exp: Date.now() + SESSION_MAX_AGE * 1000,
+        }
+        const cookieStore = await cookies()
+        cookieStore.set(SESSION_COOKIE, JSON.stringify(sessionPayload), {
+          httpOnly: true, secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/',
+        })
+        return NextResponse.json({ user: { id: existing.id, role: 'participant', full_name: body.full_name || existing.full_name, name: body.full_name || existing.full_name, email: existing.email, regno: existing.regno } })
+      }
+
+      // New participant — create a profile row
+      const newId = crypto.randomUUID()
+      const regnoEmail = `${regno.toLowerCase().replace(/\s+/g, '')}@eventpass.local`
+      const { error: insertErr } = await supabase
+        .from('profiles')
+        .insert({
+          id: newId,
+          full_name: body.full_name || regno,
+          email: regnoEmail,
+          regno,
+          role: 'participant',
+          password_hash: password,
+        })
+
+      if (insertErr) {
+        return NextResponse.json({ error: `Failed to create account: ${insertErr.message}` }, { status: 500 })
+      }
+
+      const sessionPayload = {
+        id: newId, role: 'participant', regno,
+        full_name: body.full_name || regno, email: regnoEmail,
+        iat: Date.now(), exp: Date.now() + SESSION_MAX_AGE * 1000,
+      }
+      const cookieStore = await cookies()
+      cookieStore.set(SESSION_COOKIE, JSON.stringify(sessionPayload), {
+        httpOnly: true, secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/',
+      })
+      return NextResponse.json({ user: { id: newId, role: 'participant', full_name: body.full_name || regno, name: body.full_name || regno, email: regnoEmail, regno } })
+    }
+
     // ── Participant Login ────────────────────────────────────
     if (action === 'participant_login') {
       if (!regno || !password) {
@@ -77,21 +151,14 @@ export async function POST(request: Request) {
         .limit(1)
 
       if (lookupErr || !profiles || profiles.length === 0) {
-        return NextResponse.json({ error: 'Register Number not found' }, { status: 401 })
+        return NextResponse.json({ error: 'Register Number not found. Please create an account first.' }, { status: 401 })
       }
 
       const profile = profiles[0]
 
       // Check password
       if (!profile.password_hash) {
-        // First-time login: set the password
-        const { error: updateErr } = await supabase
-          .from('profiles')
-          .update({ password_hash: password }) // store plain for now; upgrade to bcrypt if needed
-          .eq('id', profile.id)
-        if (updateErr) {
-          return NextResponse.json({ error: 'Failed to set password' }, { status: 500 })
-        }
+        return NextResponse.json({ error: 'No password set. Please use Create Account to register.' }, { status: 401 })
       } else if (profile.password_hash !== password) {
         return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
       }

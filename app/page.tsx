@@ -136,13 +136,16 @@ function EventCard({ event, onRegister, onUnregister, onDelete, registered, isOr
 
 function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { close: () => void; defaultTab: 'organizer' | 'participant'; onLoginSuccess: (user: any) => void; isForced?: boolean }) {
   const [tab, setTab] = useState<'organizer' | 'participant'>(defaultTab)
+  const [participantMode, setParticipantMode] = useState<'login' | 'signup'>('login')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [orgId, setOrgId] = useState('')
   const [orgPassword, setOrgPassword] = useState('')
   const [regno, setRegno] = useState('')
+  const [fullName, setFullName] = useState('')
   const [participantPassword, setParticipantPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // Autofill last used organizer ID from localStorage
   function autofillOrganizer() {
@@ -162,8 +165,21 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
 
     try {
       let payload: any
+
       if (tab === 'organizer') {
         payload = { action: 'organizer_login', organizer_id: orgId, password: orgPassword }
+      } else if (participantMode === 'signup') {
+        if (participantPassword !== confirmPassword) {
+          setError('Passwords do not match')
+          setLoading(false)
+          return
+        }
+        if (participantPassword.length < 6) {
+          setError('Password must be at least 6 characters')
+          setLoading(false)
+          return
+        }
+        payload = { action: 'participant_signup', regno: regno.trim(), full_name: fullName.trim(), password: participantPassword }
       } else {
         payload = { action: 'participant_login', regno: regno.trim(), password: participantPassword }
       }
@@ -189,7 +205,7 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
       onLoginSuccess(data.user)
       close()
     } catch (err: any) {
-      setError(err.message || 'An error occurred during sign in')
+      setError(err.message || 'An error occurred')
       setLoading(false)
     }
   }
@@ -225,7 +241,7 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
           type="button"
           onClick={() => { setTab('organizer'); setError('') }}
         >
-          Participant
+          Organizer
         </button>
         <button
           style={{
@@ -235,7 +251,7 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
             color: tab === 'participant' ? 'var(--background)' : 'var(--muted-foreground)',
           }}
           type="button"
-          onClick={() => { setTab('participant'); setError('') }}
+          onClick={() => { setTab('participant'); setError(''); setParticipantMode('login') }}
         >
           Participant
         </button>
@@ -304,18 +320,35 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
           </>
         ) : (
           <>
-            <div style={{
-              padding: '10px 14px', borderRadius: '8px',
-              background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.2)',
-              fontSize: '12px', color: 'var(--muted-foreground)',
-            }}>
-              Enter your Registration Number and password to access your events. First-time logins will automatically register the password.
+            {/* Sign In / Sign Up toggle */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+              <button
+                type="button"
+                onClick={() => { setParticipantMode('login'); setError('') }}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)',
+                  fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                  background: participantMode === 'login' ? 'var(--foreground)' : 'transparent',
+                  color: participantMode === 'login' ? 'var(--background)' : 'var(--muted-foreground)',
+                }}
+              >Sign In</button>
+              <button
+                type="button"
+                onClick={() => { setParticipantMode('signup'); setError('') }}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)',
+                  fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                  background: participantMode === 'signup' ? 'var(--foreground)' : 'transparent',
+                  color: participantMode === 'signup' ? 'var(--background)' : 'var(--muted-foreground)',
+                }}
+              >Create Account</button>
             </div>
+
             <label style={labelStyle}>
               Register Number *
               <input
                 type="text"
-                placeholder="e.g. 2026-REG-104"
+                placeholder="e.g. 25MIS1157"
                 value={regno}
                 onChange={(e) => setRegno(e.target.value)}
                 required
@@ -323,16 +356,32 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
                 style={inputStyle}
               />
             </label>
+
+            {participantMode === 'signup' && (
+              <label style={labelStyle}>
+                Full Name *
+                <input
+                  type="text"
+                  placeholder="Your full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  autoComplete="name"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+
             <label style={labelStyle}>
               Password *
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
+                  placeholder={participantMode === 'signup' ? 'Create a password (min 6 chars)' : 'Enter your password'}
                   value={participantPassword}
                   onChange={(e) => setParticipantPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
+                  autoComplete={participantMode === 'signup' ? 'new-password' : 'current-password'}
                   style={{ ...inputStyle, paddingRight: '56px' }}
                 />
                 <button
@@ -348,6 +397,21 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
                 </button>
               </div>
             </label>
+
+            {participantMode === 'signup' && (
+              <label style={labelStyle}>
+                Confirm Password *
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  style={inputStyle}
+                />
+              </label>
+            )}
           </>
         )}
 
@@ -356,7 +420,7 @@ function LoginModal({ close, defaultTab, onLoginSuccess, isForced = false }: { c
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
           {!isForced && <button type="button" className="button button-outline" onClick={close}>Cancel</button>}
           <button className="button button-dark" disabled={loading} id="login-submit-btn">
-            {loading ? 'Authenticating...' : tab === 'organizer' ? 'Sign in as Organizer' : 'Sign in as Participant'}
+            {loading ? (participantMode === 'signup' ? 'Creating Account...' : 'Signing In...') : tab === 'organizer' ? 'Sign in as Organizer' : participantMode === 'signup' ? 'Create Account' : 'Sign In'}
           </button>
         </div>
       </form>
