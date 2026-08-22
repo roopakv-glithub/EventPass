@@ -189,7 +189,7 @@ export function AnalyticsDashboard({ events, liveData = {} }: { events: EventRec
 
   return <div className="analytics-page">
     <section className="page-heading analytics-heading">
-      <div><p className="eyebrow">PERFORMANCE · LIVE DATA</p><h1>Event analytics</h1><p className="subhead">Live data from Supabase — charts update every 60 seconds.</p></div>
+      <div><p className="eyebrow">PERFORMANCE · LIVE DATA</p><h1>Event analytics</h1><p className="subhead">Live attendance data — charts update every 60 seconds.</p></div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <label className="event-selector"><span>Analyzing event</span><select value={selectedEventId} onChange={(current) => { setSelectedEventId(current.target.value); setMessages([]) }} aria-label="Select event to analyze">{events.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><ChevronDown size={15} /></label>
         <button
@@ -257,6 +257,6 @@ export function AnalyticsDashboard({ events, liveData = {} }: { events: EventRec
 
     <section className="ai-analytics panel"><div className="ai-heading"><div className="ai-icon"><Bot size={19} /></div><div><h2>Ask about this event</h2><p>Get quick answers from the attendance data for {event?.title}.</p></div><span className="ai-ready"><span />Ready</span></div><div className="chat-window" aria-live="polite">{messages.length === 0 && !loading ? <div className="chat-empty"><Bot size={23} /><strong>Ask a question about {event?.title}</strong><span>Try one of the questions below or ask in your own words.</span></div> : messages.map((message, index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><div className="message-avatar">{message.role === 'assistant' ? <Bot size={14} /> : 'JD'}</div><p>{message.content}</p></div>)}{loading && <div className="chat-message assistant"><div className="message-avatar"><Bot size={14} /></div><p className="loading-answer"><LoaderCircle size={14} />Analyzing attendance data...</p></div>}</div><form className="chat-form" onSubmit={(current) => { current.preventDefault(); submitQuestion() }}><input value={question} onChange={(current) => setQuestion(current.target.value)} placeholder="Ask about registrations or check-ins..." aria-label="Ask a question about the selected event" /><button className="button button-dark" type="submit" disabled={loading || !question.trim()}><Send size={15} />Ask AI</button></form><div className="faq-list"><div className="faq-label"><span>Frequently asked</span><small>About {event?.title}</small></div><div className="faq-buttons">{faqQuestions.map((faq) => <button key={faq} onClick={() => submitQuestion(faq)} disabled={loading}><span>{faq}</span><ArrowUpRight size={14} /></button>)}</div></div></section>
 
-    <div className="analytics-footnote"><Users size={15} /> Live data from Supabase · Showing real-time registrations and check-ins.</div>
+    <div className="analytics-footnote"><Users size={15} /> Live attendance data · Showing real-time registrations and check-ins.</div>
   </div>
 }

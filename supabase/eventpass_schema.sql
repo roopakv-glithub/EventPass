@@ -453,7 +453,8 @@ BEGIN
     -- Count current registrations for this event
     SELECT COUNT(*) INTO v_current_count
     FROM public.registrations
-    WHERE event_id = p_event_id;
+    WHERE event_id = p_event_id
+      AND status = 'registered';
 
     -- Strict Capacity Enforcement
     IF v_current_count >= v_capacity THEN

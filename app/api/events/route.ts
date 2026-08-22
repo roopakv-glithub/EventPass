@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body?.name || !body?.event_date || !body?.capacity) return NextResponse.json({ error: 'Event name, date, and capacity are required' }, { status: 400 })
   if (!Number.isInteger(body.capacity) || body.capacity < 1) return NextResponse.json({ error: 'Capacity must be a positive whole number' }, { status: 400 })
+  if (body.end_time && body.start_time && body.end_time <= body.start_time) return NextResponse.json({ error: 'End time must be later than start time' }, { status: 400 })
   const { data, error } = await supabase.from('events').insert({ organizer_id: user.id, name: body.name, event_date: body.event_date, start_time: body.start_time, end_time: body.end_time || null, capacity: body.capacity, description: body.description ?? '', location: body.location ?? '', image_url: body.image_url ?? null, status: 'published' }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ event: data }, { status: 201 })

@@ -153,7 +153,7 @@ export async function POST(request: Request) {
       // If action is register_event, use the race-condition-safe RPC
       if (action === 'register_event' && event_id) {
         if (profileId) {
-          const { data: rpcResult, error: rpcError } = await supabase.rpc('register_for_event_v2', {
+          const { data: rpcResult, error: rpcError } = await supabase.rpc('register_participant_atomic', {
             p_event_id: event_id,
             p_participant_id: profileId,
             p_email: email || null,

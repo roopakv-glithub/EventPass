@@ -82,7 +82,7 @@ export async function POST(request: Request) {
             },
             {
               role: 'user',
-              content: `Live Supabase Event Data:\n${JSON.stringify({
+              content: `Live Event Data:\n${JSON.stringify({
                 event_name: eventName,
                 capacity,
                 registered_attendees: registered,

@@ -452,18 +452,18 @@ function CreateEventModal({ close, refresh }: { close: () => void; refresh: () =
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Failed to create event in Supabase')
+        setError(data.error || 'Failed to create event')
         setLoading(false)
         return
       }
 
-      setSuccessMsg('Event successfully saved to Supabase!')
+      setSuccessMsg('Event successfully saved!')
       refresh()
       setTimeout(() => {
         close()
       }, 1200)
     } catch (err: any) {
-      setError(err.message || 'An error occurred while connecting to Supabase')
+      setError(err.message || 'An error occurred while connecting to the service')
       setLoading(false)
     }
   }
@@ -472,7 +472,7 @@ function CreateEventModal({ close, refresh }: { close: () => void; refresh: () =
     <form className="create-event-form modal-form" onSubmit={submit}>
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">SUPABASE CONNECTED</p>
+          <p className="eyebrow">WORKSPACE CONNECTED</p>
           <h2>Create New Event</h2>
         </div>
         <button type="button" className="icon-button" aria-label="Close" onClick={close}>×</button>
@@ -530,7 +530,7 @@ function CreateEventModal({ close, refresh }: { close: () => void; refresh: () =
       <div className="scanner-controls" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
         <button type="button" className="button button-outline" onClick={close}>Cancel</button>
         <button className="button button-dark" disabled={loading}>
-          {loading ? 'Saving to Supabase...' : 'Save & Publish Event'}
+          {loading ? 'Saving...' : 'Save & Publish Event'}
         </button>
       </div>
     </form>
@@ -543,9 +543,9 @@ function ParticipantHome({ registeredEvents, register, onUnregister, setPage, ev
   return <div className="page-content">
     <section className="welcome-row">
       <div>
-        <p className="eyebrow">Supabase Realtime Workspace</p>
+        <p className="eyebrow">Realtime Workspace</p>
         <h1>Welcome, {displayName} <span className="wave">✦</span></h1>
-        <p className="subhead">{user?.regno ? `Reg No: ${user.regno} · Choose an event to register.` : 'Explore available events in Supabase.'}</p>
+        <p className="subhead">{user?.regno ? `Reg No: ${user.regno} · Choose an event to register.` : 'Explore available events.'}</p>
       </div>
       <button className="button button-dark" onClick={() => setPage('explore')}><Plus size={16} />Find an event</button>
     </section>
@@ -553,7 +553,7 @@ function ParticipantHome({ registeredEvents, register, onUnregister, setPage, ev
     {events.length > 0 ? (
       <section className="featured-pass">
         <div>
-          <div className="eyebrow light">FEATURED EVENT FROM SUPABASE</div>
+          <div className="eyebrow light">FEATURED EVENT</div>
           <h2>{events[0].title}</h2>
           <p><CalendarDays size={15} /> {events[0].date} <span>·</span> <ExternalLink size={15} /> {events[0].location}</p>
           <button className="button button-white" onClick={() => {
@@ -575,7 +575,7 @@ function ParticipantHome({ registeredEvents, register, onUnregister, setPage, ev
 
     <div className="section-heading">
       <div>
-        <h2>Available Events in Supabase</h2>
+        <h2>Available Events</h2>
         <p>Events published in database.</p>
       </div>
       <button className="text-button" onClick={() => setPage('explore')}>View all <ArrowRight size={15} /></button>
@@ -595,7 +595,7 @@ function ParticipantHome({ registeredEvents, register, onUnregister, setPage, ev
       </div>
     ) : (
       <div className="panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-        <h3>No events created yet in Supabase</h3>
+        <h3>No events created yet</h3>
         <p>Switch to Organizer mode to create and publish your first event.</p>
       </div>
     )}
@@ -608,7 +608,7 @@ function Explore({ registeredEvents, register, onUnregister, events }: any) {
       <div>
         <p className="eyebrow">DISCOVER</p>
         <h1>Find your next event.</h1>
-        <p className="subhead">Live events fetched directly from Supabase database.</p>
+        <p className="subhead">Live events updated from the event database.</p>
       </div>
       <div className="search-box"><Search size={16} /><input placeholder="Search events..." /></div>
     </section>
@@ -627,7 +627,7 @@ function Explore({ registeredEvents, register, onUnregister, events }: any) {
       </div>
     ) : (
       <div className="panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-        <h3>No published events found in Supabase</h3>
+        <h3>No published events found</h3>
         <p>Use the "Create event" form to add events to the database.</p>
       </div>
     )}
@@ -698,7 +698,7 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
       <div>
         <p className="eyebrow">YOUR TICKETS ({registeredList.length})</p>
         <h1>My events</h1>
-        <p className="subhead">Your registered tickets saved in Supabase.</p>
+        <p className="subhead">Your registered tickets.</p>
       </div>
     </section>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -761,7 +761,7 @@ function MyEvents({ registeredEvents, events, user, people, onUnregister }: any)
             <div className="side-note">
               <ShieldCheck size={20} />
               <h3>Good to go.</h3>
-              <p>Your ticket is saved in Supabase. Show this QR code at the door to check in.</p>
+              <p>Your ticket is ready. Show this QR code at the door to check in.</p>
               <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                 <button className="button button-outline" onClick={() => onUnregister(event)} style={{ borderColor: '#ef4444', color: '#ef4444', flex: 1 }}>Unregister</button>
               </div>
@@ -800,20 +800,20 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
       <div>
         <p className="eyebrow">ORGANIZER WORKSPACE</p>
         <h1>Welcome, {organizerName} <span className="wave">✦</span></h1>
-        <p className="subhead">Manage your events and live participant registrations from Supabase.</p>
+        <p className="subhead">Manage your events and live participant registrations.</p>
       </div>
       <button className="button button-dark" onClick={openCreateModal}><Plus size={16} />Create event</button>
     </section>
     <div className="stats-grid">
       <StatCard label="Total attendees" value={String(people.length)} change="Live" icon={Users} />
-      <StatCard label="Active events" value={String(events.length)} change="Supabase" icon={CalendarDays} />
+      <StatCard label="Active events" value={String(events.length)} change="Live" icon={CalendarDays} />
       <StatCard label="Check-in rate" value={people.length ? `${Math.round((checked / people.length) * 100)}%` : '0%'} change="Realtime" icon={CheckCircle2} />
       <StatCard label="Tickets scanned" value={String(checked)} change="Door" icon={QrCode} />
     </div>
     <div className="dashboard-grid">
       <div className="panel">
         <div className="panel-heading">
-          <div><h2>Recent activity</h2><p>Live participant registrations from Supabase.</p></div>
+          <div><h2>Recent activity</h2><p>Live participant registrations.</p></div>
         </div>
         <div className="activity-list">
           {people.slice(0, 5).map((p: any, i: number) => (
@@ -841,7 +841,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
             <ArrowRight size={15} />
           </div>
         ))}
-        {events.length === 0 && <p style={{ padding: '20px', color: 'var(--muted-foreground)' }}>No events published yet in Supabase.</p>}
+        {events.length === 0 && <p style={{ padding: '20px', color: 'var(--muted-foreground)' }}>No events published yet.</p>}
       </div>
     </div>
   </>
@@ -851,7 +851,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
       <div>
         <p className="eyebrow">ORGANIZE</p>
         <h1>Your events</h1>
-        <p className="subhead">Events fetched live from Supabase database.</p>
+        <p className="subhead">Events updated live from the event database.</p>
       </div>
       <button className="button button-dark" onClick={openCreateModal}><Plus size={16} />Create event</button>
     </section>
@@ -870,7 +870,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
       </div>
     ) : (
       <div className="panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-        <h3>No events created in Supabase yet</h3>
+        <h3>No events created yet</h3>
         <p>Click "Create event" to publish your first event to the database.</p>
       </div>
     )}
@@ -881,7 +881,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
       <div>
         <p className="eyebrow">PEOPLE</p>
         <h1>Participants</h1>
-        <p className="subhead">{filteredPeople.length} participant registrations found in Supabase.</p>
+        <p className="subhead">{filteredPeople.length} participant registrations found.</p>
       </div>
       <button className="button button-outline"><Download size={15} />Export CSV</button>
     </section>
@@ -951,7 +951,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
         </table>
         {filteredPeople.length === 0 && (
           <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '14px' }}>
-            No participants found in Supabase for the selected event.
+            No participants found for the selected event.
           </div>
         )}
       </div>
@@ -1200,10 +1200,10 @@ export default function Page() {
       const data = await res.json()
 
       if (!res.ok) {
-        if (res.status === 409 || data.error?.includes('EVENT_FULL') || data.error?.includes('full')) {
-          alert('Seat not available. This event has reached maximum capacity set in Supabase.')
-        } else if (data.error?.includes('ALREADY_REGISTERED')) {
+        if (data.error?.includes('ALREADY_REGISTERED') || data.error?.toLowerCase().includes('already registered')) {
           alert('You are already registered for this event.')
+        } else if (res.status === 409 || data.error?.includes('EVENT_FULL') || data.error?.toLowerCase().includes('full')) {
+          alert('Seat not available. This event has reached maximum capacity.')
         } else {
           alert(`Registration failed: ${data.error || 'Unknown error'}`)
         }

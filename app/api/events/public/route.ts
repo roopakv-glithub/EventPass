@@ -35,6 +35,9 @@ export async function POST(request: Request) {
     if (!Number.isInteger(Number(body.capacity)) || Number(body.capacity) < 1) {
       return NextResponse.json({ error: 'Capacity must be a positive whole number' }, { status: 400 })
     }
+    if (body.end_time && body.end_time <= body.start_time) {
+      return NextResponse.json({ error: 'End time must be later than start time' }, { status: 400 })
+    }
 
     // Find any existing profile or fallback to creating one if service role key is present
     let organizerId: string | null = null
@@ -115,12 +118,12 @@ export async function POST(request: Request) {
     if (insertResult.error) {
       if (insertResult.error.message.includes('organizer_id')) {
         return NextResponse.json({ 
-          error: 'organizer_id is null constraint error. To fix: Run migration 005_make_organizer_id_optional.sql in your Supabase SQL Editor.' 
+          error: 'organizer_id is null constraint error. To fix: Run migration 005_make_organizer_id_optional.sql in your database SQL editor.'
         }, { status: 400 })
       }
       if (insertResult.error.message.includes('permission denied') || insertResult.error.code === '42501') {
         return NextResponse.json({ 
-          error: 'Supabase RLS Permission Denied. To fix: Add SUPABASE_SERVICE_ROLE_KEY to .env.local OR run migration 004_allow_public_event_insert.sql in Supabase SQL Editor.' 
+          error: 'Database permission denied. To fix: add the server key to .env.local or run migration 004_allow_public_event_insert.sql in your database SQL editor.'
         }, { status: 403 })
       }
       return NextResponse.json({ error: insertResult.error.message }, { status: 400 })
