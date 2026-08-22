@@ -23,10 +23,10 @@
 
 ### 1. 🎫 Dynamic & High-Security QR Passes
 - **Dynamic 30s Cryptographic Token**: Prevents ticket sharing and screenshot fraud using time-step SHA-256 token hashing.
-- **High-Res Ticket Download**: One-click download of physical-style attendee ticket passes with registration numbers (e.g. `25MIS1157`).
+- **Live QR Pass**: Displays the participant's current QR pass in the app with a registration number (e.g. `25MIS1157`).
 - **Event Isolation**: Unique registration passes for each event — checking in to Event A will never validate at Event B.
 
-### 2. 📷 Dual Door-Control Scanner
+### 2. 📷 Door-Control Scanner
 - **Live Camera Scanner**: Rapid barcode scanning via device camera with instant feedback.
 - **Auto-Event Detection**: Automatically detects and matches the attendee's registered event.
 - **Duplicate Check-In Protection**: Instantly detects and warns if a badge has already been scanned, timestamping exact entry time.
@@ -49,7 +49,7 @@ graph TD
     User([📱 Mobile / Desktop User]) <--> Frontend[⚡ Next.js 16 / React 19 Frontend]
     Frontend <--> Supabase[(🗄️ Supabase PostgreSQL)]
     Frontend <--> RustAPI[🦀 Rust QR Engine on Render]
-    Organizer([🎟️ Door Control Scanner]) -->|Scan Camera / Upload| Frontend
+    Organizer([🎟️ Door Control Scanner]) -->|Scan with Camera| Frontend
 ```
 
 - **Frontend**: Next.js 16 (Turbopack, React 19, Vanilla CSS Design System)
@@ -69,24 +69,31 @@ The automation is idempotent, so retries do not overwrite an existing QR token. 
 
 ## 🚀 Quick Start (Local Setup)
 
-### 1. Clone the repository
+### 1. Install prerequisites
+
+Install Node.js 20 or newer, npm, Git, and Rust/Cargo if you want to run the QR service locally. A Supabase project is also required.
+
+### 2. Clone the repository
 ```bash
 git clone https://github.com/roopakv-glithub/EventPass.git
 cd EventPass
 ```
 
-### 2. Install dependencies
+### 3. Install dependencies
 ```bash
 npm install
 # or
 pnpm install
 ```
 
-### 3. Configure Environment Variables
+### 4. Configure Environment Variables
 Copy `.env.example` to `.env.local`:
 ```bash
 cp .env.example .env.local
 ```
+
+On Windows PowerShell, use `Copy-Item .env.example .env.local` instead.
+
 Fill in your Supabase and Render API credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -95,7 +102,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 NEXT_PUBLIC_RUST_QR_API_URL=https://rust-qr-api.onrender.com
 ```
 
-### 4. Run database migrations
+### 5. Run database migrations
 Execute the SQL files inside `supabase/migrations/` in your **Supabase SQL Editor**:
 1. `001_eventpass_schema.sql`
 2. `002_fix_security_checkin_realtime.sql`
@@ -107,11 +114,28 @@ Execute the SQL files inside `supabase/migrations/` in your **Supabase SQL Edito
 8. `008_fix_permissions.sql`
 9. `009_rbac_and_participant_auth.sql`
 
-### 5. Start the development server
+### 6. Start the development server
 ```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Run the Rust QR service locally (optional)
+
+In a second terminal:
+
+```bash
+cd rust-qr-api
+cargo run
+```
+
+The service listens on `http://localhost:8080`. Set this value in `.env.local` so the Next.js app uses the local service:
+
+```env
+NEXT_PUBLIC_RUST_QR_API_URL=http://localhost:8080
+```
+
+Start the Next.js app in another terminal with `npm run dev`. For camera scanning, open the app through `localhost` and allow browser camera permission. To use the deployed service instead, keep `NEXT_PUBLIC_RUST_QR_API_URL=https://rust-qr-api.onrender.com`.
 
 ---
 
@@ -140,10 +164,10 @@ Follow [docs/activepieces-registration-webhook.md](docs/activepieces-registratio
 
 ## 🧪 Testing Check-In Flows
 
-1. Switch to **Participant** mode → click **"Register Event"**.
-2. Go to **"My events"** → click **"Download ⬇"** to save your QR pass.
-3. Switch to **Organizer** mode → open **Scanner**.
-4. Upload or scan the ticket image.
+1. Switch to **Participant** mode and click **"Register Event"**.
+2. Open **My QR** to display the live QR pass.
+3. Switch to **Organizer** mode and open **Scanner**.
+4. Scan the participant's QR code with the device camera.
 5. Verification returns: **`✅ Check-in Successful: [Attendee Name]`**.
 6. Scan again to verify duplicate detection: **`Already Checked In`**.
 
