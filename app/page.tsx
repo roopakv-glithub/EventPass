@@ -674,6 +674,31 @@ function downloadTicketQR(svgId: string, filename: string, label: string) {
   img.src = url
 }
 
+function exportParticipantsToCSV(rows: any[], selectedEvent?: string) {
+  const header = ['Reg No', 'Participant', 'Email', 'Event', 'Registered Date', 'Status']
+  const escapeCsv = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const lines = [
+    header.join(','),
+    ...rows.map((p: any) =>
+      [p.regno || '', p.name || '', p.email || '', p.event || '', p.registered || '', p.status || '']
+        .map(escapeCsv)
+        .join(','),
+    ),
+  ]
+  const csv = lines.join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const stamp = new Date().toISOString().slice(0, 10)
+  const eventPart = selectedEvent && selectedEvent !== 'all' ? `-${selectedEvent.replace(/[^a-z0-9]/gi, '_')}` : ''
+  a.download = `eventpass-participants${eventPart}-${stamp}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function MyEvents({ registeredEvents, events, user, people, onUnregister }: any) { 
   const registeredList = events.filter((e: any) => Boolean(registeredEvents[e.id]))
 
@@ -883,7 +908,7 @@ function Organizer({ page, people, setPeople, events, openCreateModal, user, onD
         <h1>Participants</h1>
         <p className="subhead">{filteredPeople.length} participant registrations found.</p>
       </div>
-      <button className="button button-outline"><Download size={15} />Export CSV</button>
+      <button className="button button-outline" onClick={() => exportParticipantsToCSV(filteredPeople, selectedEventId)}><Download size={15} />Export CSV</button>
     </section>
     <div className="panel table-panel">
       <div className="table-tools" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
