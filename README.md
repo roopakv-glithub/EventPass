@@ -125,6 +125,3 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 6. Scan again to verify duplicate detection: **`Already Checked In`**.
 
 ---
-
-## 📄 License
-MIT License © 2026 EventPass Team.
