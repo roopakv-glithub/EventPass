@@ -20,7 +20,6 @@
 
 ### 2. 📷 Dual Door-Control Scanner
 - **Live Camera Scanner**: Rapid barcode scanning via device camera with instant feedback.
-- **Image Upload Mode**: Upload ticket pass screenshots/downloads with instant image decoding via `html5-qrcode`.
 - **Auto-Event Detection**: Automatically detects and matches the attendee's registered event.
 - **Duplicate Check-In Protection**: Instantly detects and warns if a badge has already been scanned, timestamping exact entry time.
 - **Offline Sync Queue**: Automatically queues check-ins locally if internet drops and syncs when reconnected.
