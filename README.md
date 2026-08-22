@@ -1,4 +1,4 @@
-# 🎟️ EventPass — High-Concurreny Event Check-In & QR Management System
+# 🎟️ EventPass — Event Check-In and QR Management System
 
 ![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19-blue?logo=react)
@@ -7,7 +7,15 @@
 ![Render](https://img.shields.io/badge/Render-Hosted-purple?logo=render)
 ![Vercel](https://img.shields.io/badge/Vercel-Frontend-black?logo=vercel)
 
-**EventPass** is an end-to-end event registration, dynamic QR ticket pass generation, and real-time door control check-in system designed for high concurrency, security, and responsive mobile access.
+**EventPass** is a web application for publishing events, registering participants, issuing rotating QR passes, and managing secure door check-ins from a mobile-friendly organizer workspace.
+
+## 📌 Project Summary
+
+- **Next.js frontend and API routes**: participant registration, organizer event management, QR display, scanner workflows, analytics, and authentication.
+- **Supabase**: PostgreSQL data storage, authentication, Row Level Security, database functions, and realtime check-in updates.
+- **Rust QR API on Render**: Axum and Tokio service that generates QR images and creates or validates rotating 30-second tokens.
+- **Activepieces automation**: a Supabase `registrations` insert can send only the new registration ID to a GitHub workflow, which generates and stores QR data using server-side secrets.
+- **Render keep-alive**: a cron service such as cron-job.org sends `GET https://YOUR-APP.onrender.com/health` every 10 minutes to reduce cold starts on the free Render web service. This is separate from registration processing.
 
 ---
 
@@ -29,8 +37,8 @@
 - **Organizer Dashboard**: Real-time attendee counter, check-in percentage, upcoming events summary, and live participant table.
 - **Event Management**: Create new events with capacity limits, event numbers, dates, times, and types.
 
-### 4. ⚡ High-Performance Rust Microservice
-- Powered by **Axum** & **Tokio** hosted on **Render** for sub-millisecond QR code rendering and TOTP token validation.
+### 4. ⚡ Rust QR Microservice
+- Powered by **Axum** and **Tokio**, hosted on **Render**, for QR rendering and rotating token generation/validation.
 
 ---
 
@@ -47,6 +55,15 @@ graph TD
 - **Frontend**: Next.js 16 (Turbopack, React 19, Vanilla CSS Design System)
 - **Database & Auth**: Supabase PostgreSQL with Row Level Security (RLS) and Realtime
 - **QR Microservice**: Rust Axum API deployed on Render (`https://rust-qr-api.onrender.com`)
+
+### Registration and QR automation
+
+1. A participant registers through the Next.js app.
+2. Supabase emits an insert webhook for `public.registrations`.
+3. Activepieces calls GitHub `repository_dispatch` with the registration UUID only.
+4. The GitHub workflow runs `qr-automation/generate_qr.py`, reads Supabase with the service-role key, and conditionally stores QR data.
+
+The automation is idempotent, so retries do not overwrite an existing QR token. Keep all service-role and GitHub dispatch credentials in secrets.
 
 ---
 
@@ -82,10 +99,13 @@ NEXT_PUBLIC_RUST_QR_API_URL=https://rust-qr-api.onrender.com
 Execute the SQL files inside `supabase/migrations/` in your **Supabase SQL Editor**:
 1. `001_eventpass_schema.sql`
 2. `002_fix_security_checkin_realtime.sql`
-3. `005_make_organizer_id_optional.sql`
-4. `006_add_regno_to_profiles.sql`
-5. `007_concurrency_and_qr_tokens.sql`
-6. `008_fix_permissions.sql`
+3. `003_add_event_number_type.sql`
+4. `004_allow_public_event_insert.sql`
+5. `005_make_organizer_id_optional.sql`
+6. `006_add_regno_to_profiles.sql`
+7. `007_concurrency_and_qr_tokens.sql`
+8. `008_fix_permissions.sql`
+9. `009_rbac_and_participant_auth.sql`
 
 ### 5. Start the development server
 ```bash
@@ -107,10 +127,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 3. Click **Deploy**.
 
 ### 2. Deploy Rust Microservice to Render
-1. Connect the `rust-qr-api` repository (`https://github.com/roopakv-glithub/Rustapi`) to [Render](https://render.com).
+1. Connect the `rust-qr-api` repository to [Render](https://render.com).
 2. Runtime: **Docker**.
 3. Set environment variable: `PORT = 8080`.
-4. Setup a free keep-alive cron job at [cron-job.org](https://cron-job.org) hitting `https://YOUR-APP.onrender.com/health` every 10 minutes.
+4. Set up a keep-alive cron job at [cron-job.org](https://cron-job.org) that sends `GET https://YOUR-APP.onrender.com/health` every 10 minutes. Use the actual Render URL for the deployed Rust service.
+
+### Activepieces and GitHub workflow
+
+Follow [docs/activepieces-registration-webhook.md](docs/activepieces-registration-webhook.md) to connect Supabase registration inserts to GitHub. Configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `QR_VALIDATION_BASE_URL` as GitHub Actions secrets. Never put the service-role key or dispatch token in browser code, commit history, logs, or webhook payloads.
 
 ---
 
